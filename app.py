@@ -7,24 +7,24 @@ app = Flask(__name__)
 @app.route('/scraped-data')
 def scraped_data():
     url = "https://www.triconinfotech.com/about/"
-    response = requests.get(url)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    }
+    response = requests.get(url, headers=headers)
     soup = BeautifulSoup(response.text, 'html.parser')
 
     leadership = []
-
-    # Inspecting the site shows leaders are in divs with class "about-us-team"
-    team_divs = soup.select('div.about-us-team div.about-us-team__item')
+    team_divs = soup.select('div.about-us-team__item')
 
     for div in team_divs:
-        name = div.select_one('h3').get_text(strip=True) if div.select_one('h3') else None
-        designation = div.select_one('p').get_text(strip=True) if div.select_one('p') else None
-        linkedin_tag = div.select_one('a[href*="linkedin.com"]')
-        linkedin_url = linkedin_tag['href'] if linkedin_tag else None
+        name = div.select_one('h3')
+        title = div.select_one('p')
+        linkedin = div.select_one('a[href*="linkedin.com"]')
 
         leadership.append({
-            'name': name,
-            'designation': designation,
-            'linkedin_url': linkedin_url
+            "name": name.get_text(strip=True) if name else None,
+            "designation": title.get_text(strip=True) if title else None,
+            "linkedin_url": linkedin['href'] if linkedin else None
         })
 
     return jsonify(leadership)
