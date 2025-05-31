@@ -1,17 +1,24 @@
 from flask import Flask, jsonify
-import requests
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 from bs4 import BeautifulSoup
+import time
 
 app = Flask(__name__)
 
 @app.route('/scraped-data')
 def scraped_data():
-    url = "https://www.triconinfotech.com/about/"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-    }
-    response = requests.get(url, headers=headers)
-    soup = BeautifulSoup(response.text, 'html.parser')
+    options = Options()
+    options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+
+    driver = webdriver.Chrome(options=options)
+    driver.get("https://www.triconinfotech.com/about/")
+    time.sleep(5)  # wait for JS to load
+
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
+    driver.quit()
 
     leadership = []
     team_divs = soup.select('div.about-us-team__item')
