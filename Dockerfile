@@ -1,10 +1,11 @@
-# Use official Python 3.10 slim image as base
+# Use an official Python runtime as a parent image
 FROM python:3.10-slim
 
-# Install dependencies for Chrome, unzip, wget, and fonts
+# Install dependencies for Chrome and Selenium
 RUN apt-get update && apt-get install -y \
     wget \
     unzip \
+    curl \
     gnupg \
     ca-certificates \
     fonts-liberation \
@@ -14,9 +15,7 @@ RUN apt-get update && apt-get install -y \
     libatk1.0-0 \
     libcups2 \
     libdbus-1-3 \
-    libdrm2 \
-    libgbm1 \
-    libgtk-3-0 \
+    libgdk-pixbuf2.0-0 \
     libnspr4 \
     libnss3 \
     libx11-xcb1 \
@@ -33,8 +32,8 @@ RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add
     apt-get update && apt-get install -y google-chrome-stable && \
     rm -rf /var/lib/apt/lists/*
 
-# Install matching ChromeDriver version dynamically (fix: use major Chrome version only)
-RUN CHROME_VERSION=$(google-chrome --version | grep -oP '\d+') && \
+# Install matching ChromeDriver version dynamically
+RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d '.' -f 1) && \
     echo "Chrome major version is $CHROME_VERSION" && \
     CHROMEDRIVER_VERSION=$(wget -qO- "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_VERSION") && \
     echo "ChromeDriver version is $CHROMEDRIVER_VERSION" && \
@@ -43,20 +42,21 @@ RUN CHROME_VERSION=$(google-chrome --version | grep -oP '\d+') && \
     rm /tmp/chromedriver.zip && \
     chmod +x /usr/local/bin/chromedriver
 
-# Set environment variable for headless Chrome
-ENV DISPLAY=:99
-
-# Copy requirements and install Python packages
-COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
-
-# Copy the app code
-COPY app.py /app/app.py
+# Set environment variables to avoid issues with headless Chrome
+ENV CHROME_BIN=/usr/bin/google-chrome
+ENV CHROMEDRIVER_BIN=/usr/local/bin/chromedriver
 
 # Set working directory
 WORKDIR /app
 
-# Expose port for Flask
+# Copy the requirements.txt and install Python dependencies
+COPY requirements.txt requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the rest of the application code
+COPY . .
+
+# Expose port 5000 for Flask app
 EXPOSE 5000
 
 # Command to run the Flask app
