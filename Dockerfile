@@ -33,9 +33,9 @@ RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add
     apt-get update && apt-get install -y google-chrome-stable && \
     rm -rf /var/lib/apt/lists/*
 
-# Install matching ChromeDriver version dynamically
-RUN CHROME_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+') && \
-    echo "Chrome version is $CHROME_VERSION" && \
+# Install matching ChromeDriver version dynamically (fix: use major Chrome version only)
+RUN CHROME_VERSION=$(google-chrome --version | grep -oP '\d+') && \
+    echo "Chrome major version is $CHROME_VERSION" && \
     CHROMEDRIVER_VERSION=$(wget -qO- "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_VERSION") && \
     echo "ChromeDriver version is $CHROMEDRIVER_VERSION" && \
     wget -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip" && \
