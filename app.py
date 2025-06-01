@@ -4,37 +4,44 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from bs4 import BeautifulSoup
 import time
+import os
 
 app = Flask(__name__)
 
 @app.route('/scraped-data')
-def scraped_data():
+def get_leadership():
     try:
-        # Connect to Selenium Hub (running in same container)
+        # Configure Selenium to use the correct endpoint
+        selenium_url = "http://selenium:4444/wd/hub"  # Changed from localhost
+        
+        options = webdriver.ChromeOptions()
+        options.add_argument('--headless')
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+        
         driver = webdriver.Remote(
-            command_executor='http://localhost:4444/wd/hub',
-            options=webdriver.ChromeOptions()
+            command_executor=selenium_url,
+            options=options
         )
         
         driver.get("https://www.triconinfotech.com/about/")
-        time.sleep(5)
+        time.sleep(8)  # Increased wait time
         
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         leadership = []
         
-        # Adjust these selectors based on actual page structure
-        for member in soup.select('.about-us-team__item'):
+        for item in soup.select('.about-us-team__item'):
             leadership.append({
-                "name": member.select_one('h3').get_text(strip=True) if member.select_one('h3') else None,
-                "designation": member.select_one('p').get_text(strip=True) if member.select_one('p') else None,
-                "linkedin": member.select_one('a[href*="linkedin.com"]')['href'] if member.select_one('a[href*="linkedin.com"]') else None
+                'name': item.select_one('h3').get_text(strip=True) if item.select_one('h3') else None,
+                'designation': item.select_one('p').get_text(strip=True) if item.select_one('p') else None,
+                'linkedin': item.select_one('a[href*="linkedin.com"]')['href'] if item.select_one('a[href*="linkedin.com"]') else None
             })
             
         driver.quit()
         return jsonify(leadership)
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
