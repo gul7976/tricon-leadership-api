@@ -1,9 +1,10 @@
-# Use official Python slim image
+# Use official Python 3.10 slim image
 FROM python:3.10-slim
 
 # Install dependencies for Chrome and Selenium
 RUN apt-get update && apt-get install -y \
     wget \
+    curl \
     gnupg2 \
     ca-certificates \
     fonts-liberation \
@@ -22,39 +23,35 @@ RUN apt-get update && apt-get install -y \
     libxrandr2 \
     xdg-utils \
     unzip \
-    curl \
-    --no-install-recommends && \
+    --no-install-recommends
+
+# Add Google Chrome signing key and repo
+RUN curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | apt-key add - && \
+    echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list && \
+    apt-get update && \
+    apt-get install -y google-chrome-stable && \
     rm -rf /var/lib/apt/lists/*
 
-# Add Google's official Linux signing key and Chrome repo
-RUN wget -q -O /usr/share/keyrings/google-linux-signing-key.gpg https://dl.google.com/linux/linux_signing_key.pub && \
-    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-linux-signing-key.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list && \
-    apt-get update && apt-get install -y google-chrome-stable --fix-missing && \
-    rm -rf /var/lib/apt/lists/*
-
-# Get Chrome major version installed
-RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d '.' -f 1) && \
-    echo "Chrome major version is $CHROME_VERSION" && \
-    CHROMEDRIVER_VERSION=$(wget -qO- "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_VERSION") && \
+# Install matching ChromeDriver version
+RUN CHROME_MAJOR_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d '.' -f1) && \
+    echo "Chrome major version is $CHROME_MAJOR_VERSION" && \
+    CHROMEDRIVER_VERSION=$(wget -qO- "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_MAJOR_VERSION") && \
     echo "ChromeDriver version is $CHROMEDRIVER_VERSION" && \
     wget -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip" && \
     unzip /tmp/chromedriver.zip -d /usr/local/bin/ && \
     rm /tmp/chromedriver.zip && \
     chmod +x /usr/local/bin/chromedriver
 
-# Set environment variables for Chrome/Chromedriver for Selenium
-ENV PATH="/usr/local/bin/:${PATH}"
-ENV CHROME_BIN="/usr/bin/google-chrome"
-ENV CHROMEDRIVER_PATH="/usr/local/bin/chromedriver"
+# Set display port for headless Chrome (optional)
+ENV DISPLAY=:99
 
-# Copy your app code into the container
-COPY . /app
+# Copy your app files to /app
 WORKDIR /app
-
-# Install Python dependencies (make sure you have requirements.txt)
+COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
 
-# Expose port for Flask app
+# Expose port your Flask app runs on (default 5000)
 EXPOSE 5000
 
 # Command to run your Flask app
