@@ -1,47 +1,79 @@
 from flask import Flask, jsonify
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
+from webdriver_manager.chrome import ChromeDriverManager
+import logging
 import time
 import os
 
 app = Flask(__name__)
+logging.basicConfig(level=logging.INFO)
 
-@app.route('/scraped-data')
+@app.route('/api/leadership', methods=['GET'])
 def get_leadership():
     try:
-        # Configure Selenium to use the correct endpoint
-        selenium_url = "http://selenium:4444/wd/hub"  # Changed from localhost
-        
-        options = webdriver.ChromeOptions()
-        options.add_argument('--headless')
-        options.add_argument('--no-sandbox')
-        options.add_argument('--disable-dev-shm-usage')
-        
-        driver = webdriver.Remote(
-            command_executor=selenium_url,
-            options=options
+        # Chrome options for headless operation in server/cloud environment
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--window-size=1920x1080")
+
+        # Use webdriver_manager to get ChromeDriver automatically
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+
+        url = "https://www.triconinfotech.com/about/"
+        logging.info(f"Accessing {url}")
+        driver.get(url)
+
+        # Wait for the team section to load
+        WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located((By.CLASS_NAME, "av-masonry-container"))
         )
-        
-        driver.get("https://www.triconinfotech.com/about/")
-        time.sleep(8)  # Increased wait time
-        
-        soup = BeautifulSoup(driver.page_source, 'html.parser')
-        leadership = []
-        
-        for item in soup.select('.about-us-team__item'):
-            leadership.append({
-                'name': item.select_one('h3').get_text(strip=True) if item.select_one('h3') else None,
-                'designation': item.select_one('p').get_text(strip=True) if item.select_one('p') else None,
-                'linkedin': item.select_one('a[href*="linkedin.com"]')['href'] if item.select_one('a[href*="linkedin.com"]') else None
-            })
-            
+        time.sleep(2)  # wait for animations/rendering if needed
+
+        # Parse with BeautifulSoup
+        soup = BeautifulSoup(driver.page_source, "html.parser")
         driver.quit()
-        return jsonify(leadership)
-        
+
+        leaders = []
+        team_section = soup.find("div", class_="av-masonry-container")
+
+        if not team_section:
+            logging.error("Leadership section not found.")
+            return jsonify({"error": "Could not locate leadership section"}), 404
+
+        members = team_section.find_all("div", class_="av-masonry-entry")
+
+        for member in members:
+            name_tag = member.find("h3", class_="av-masonry-entry-title")
+            role_tag = member.find("div", class_="av-inner-masonry-content")
+            link_tag = member.find("a", href=True)
+
+            name = name_tag.get_text(strip=True) if name_tag else None
+            role = role_tag.get_text(strip=True) if role_tag else None
+            linkedin = link_tag["href"] if link_tag and "linkedin.com" in link_tag["href"] else None
+
+            if name:
+                leaders.append({
+                    "name": name,
+                    "designation": role,
+                    "linkedin": linkedin
+                })
+
+        return jsonify({"executive_leadership": leaders})
+
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logging.exception("An error occurred during scraping.")
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=False, host='0.0.0.0', port=port)
